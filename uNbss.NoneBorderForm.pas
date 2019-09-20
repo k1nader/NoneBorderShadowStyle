@@ -23,7 +23,6 @@ type
   TNoneBorderShadowStyle = class(TComponent)
   private
     FParent: TForm;
-    FShadowForm: TShadowForm;
     FOldWndProc: TWndMethod;
     FEnabledShadow: Boolean;
     FEnabledNoBorder: Boolean;
@@ -31,6 +30,7 @@ type
     procedure SizeChanged;
     procedure ShowShadow;
   protected
+    FShadowForm: TShadowForm;
     procedure WndProc(var Msg: TMessage); virtual;
     procedure SetEnabledShadow(const Value: Boolean);
     procedure SetEnabledNoBorder(const Value: Boolean);
@@ -50,7 +50,7 @@ constructor TShadowForm.CreateNew(AOwner: TComponent; Dummy: Integer = 0);
 begin
   inherited CreateNew(AOwner);
 
-  SetWindowLong(Self.Handle, GWL_EXSTYLE, GetWindowLong(Self.Handle, GWL_EXSTYLE) or WS_EX_LAYERED);
+  SetWindowLong(Self.Handle, GWL_EXSTYLE, GetWindowLong(Self.Handle, GWL_EXSTYLE) or WS_EX_LAYERED or WS_EX_TRANSPARENT);
 end;
 
 procedure TShadowForm.DrawRoundRectangle(AGPGraphics: TGPGraphics; AGPPen: TGPPen; ARect: TRect; ACornerRadius: Integer);
@@ -188,6 +188,7 @@ begin
 
   SetEnabledShadow(FEnabledShadow);
   SetEnabledNoBorder(FEnabledNoBorder);
+
 end;
 
 destructor TNoneBorderShadowStyle.Destroy;
@@ -202,6 +203,9 @@ begin
   begin
     FEnabledShadow := Value;
   end;
+
+  ShowShadow;
+
 end;
 
 procedure TNoneBorderShadowStyle.SetEnabledNoBorder(const Value: Boolean);
@@ -219,7 +223,7 @@ end;
 
 procedure TNoneBorderShadowStyle.LocationChanged;
 begin
-  if (FShadowForm <> nil) then
+  if Assigned(FShadowForm) and (FShadowForm <> nil) then
   begin
     FShadowForm.left := FParent.Left - sfShadowWidth;
     FShadowForm.Top := FParent.Top - sfShadowWidth;
@@ -228,7 +232,7 @@ end;
 
 procedure TNoneBorderShadowStyle.SizeChanged;
 begin
-  if (FShadowForm <> nil) then
+  if Assigned(FShadowForm) and (FShadowForm <> nil) then
   begin
     FShadowForm.Height := FParent.Height + sfShadowWidth * 2;
     FShadowForm.Width := FParent.Width + sfShadowWidth * 2;
@@ -238,28 +242,43 @@ end;
 
 procedure TNoneBorderShadowStyle.ShowShadow;
 begin
-
-  if FParent.WindowState = wsNormal then
+  if csDesigning in ComponentState then
   begin
-    if not Assigned(FShadowForm) then
+    Exit;
+  end;
+
+  if FEnabledShadow then
+  begin
+    if FParent.WindowState = wsNormal then
     begin
-      FShadowForm := TShadowForm.CreateNew(FParent); // 创建皮肤层
-      FShadowForm.Color := $000000FF;
-      FShadowForm.BorderStyle := bsNone;
-      FShadowForm.left := FParent.left - sfShadowWidth;
-      FShadowForm.Top := FParent.Top - sfShadowWidth;
-      FShadowForm.Height := FParent.Height + sfShadowWidth * 2;
-      FShadowForm.Width := FParent.Width + sfShadowWidth * 2;
+      if not Assigned(FShadowForm) or (FShadowForm = nil) then
+      begin
+        FShadowForm := TShadowForm.CreateNew(FParent); // 创建皮肤层
+        FShadowForm.Color := $000000FF;
+        FShadowForm.BorderStyle := bsNone;
+        FShadowForm.left := FParent.left - sfShadowWidth;
+        FShadowForm.Top := FParent.Top - sfShadowWidth;
+        FShadowForm.Height := FParent.Height + sfShadowWidth * 2;
+        FShadowForm.Width := FParent.Width + sfShadowWidth * 2;
 
-      FShadowForm.SetBitmaps;
+        FShadowForm.SetBitmaps;
+      end;
+
+      LocationChanged;
+      FShadowForm.Show;
+
+    end
+    else
+    begin
+      if Assigned(FShadowForm) and (FShadowForm <> nil) then
+      begin
+        FShadowForm.Hide;
+      end;
     end;
-
-    LocationChanged;
-    FShadowForm.Show;
   end
   else
   begin
-    if Assigned(FShadowForm) then
+    if Assigned(FShadowForm) and (FShadowForm <> nil) then
     begin
       FShadowForm.Hide;
     end;
@@ -280,50 +299,36 @@ begin
   begin
     if Msg.Msg = WM_NCCALCSIZE then
     begin
-      if Win32MajorVersion >= 6 then
+      if FEnabledNoBorder then
       begin
-        if FEnabledNoBorder then
-        begin
+        Msg.Result := 0;
 
-          Msg.Result := 0;
-
-          if FParent.WindowState = wsMaximized then
-          begin
-            WMNCCalcSize := TWMNCCalcSize(Msg);
-            BorderSpace := GetSystemMetrics(SM_CYFRAME) + GetSystemMetrics(SM_CXPADDEDBORDER);
-            Inc(WMNCCalcSize.CalcSize_Params.rgrc[0].Top, BorderSpace);
-            Inc(WMNCCalcSize.CalcSize_Params.rgrc[0].Left, BorderSpace);
-            Dec(WMNCCalcSize.CalcSize_Params.rgrc[0].Right, BorderSpace);
-            Dec(WMNCCalcSize.CalcSize_Params.rgrc[0].Bottom, BorderSpace);
-          end;
-        end
-        else
+        if FParent.WindowState = wsMaximized then
         begin
-          if Assigned(FOldWndProc) then
-            FOldWndProc(Msg);
+          WMNCCalcSize := TWMNCCalcSize(Msg);
+          BorderSpace := GetSystemMetrics(SM_CYFRAME) + GetSystemMetrics(SM_CXPADDEDBORDER);
+          Inc(WMNCCalcSize.CalcSize_Params.rgrc[0].Top, BorderSpace);
+          Inc(WMNCCalcSize.CalcSize_Params.rgrc[0].Left, BorderSpace);
+          Dec(WMNCCalcSize.CalcSize_Params.rgrc[0].Right, BorderSpace);
+          Dec(WMNCCalcSize.CalcSize_Params.rgrc[0].Bottom, BorderSpace);
         end;
-      end
-      else
-      begin
-        if Assigned(FOldWndProc) then
-          FOldWndProc(Msg);
       end;
     end
-    else if Msg.Msg = WM_MOVE then
+    else if (Msg.Msg = WM_MOVE) or (Msg.Msg = WM_DWMCOMPOSITIONCHANGED) or (Msg.Msg = WM_ACTIVATEAPP) then
     begin
-      if Assigned(FOldWndProc) then
-        FOldWndProc(Msg);
-
       ShowShadow;
+
+      if Assigned(FShadowForm) and (FShadowForm <> nil) then
+      begin
+        FShadowForm.WndProc(Msg);
+      end;
     end
     else if Msg.Msg = WM_SIZE then
     begin
-      if Assigned(FOldWndProc) then
-        FOldWndProc(Msg);
-
       SizeChanged;
-    end
-    else
+    end;
+
+    if (Msg.Msg <> WM_NCCALCSIZE) or (not FEnabledNoBorder) then
     begin
       if Assigned(FOldWndProc) then
         FOldWndProc(Msg);

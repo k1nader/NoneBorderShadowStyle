@@ -4,7 +4,7 @@ interface
 
 uses
   Windows, Messages, SysUtils, Variants, Classes, Graphics, Controls, Forms,
-  Dialogs, StdCtrls, ExtCtrls, uNbss.NoneBorderForm;
+  Dialogs, StdCtrls, ExtCtrls, uNbss.NoneBorderForm, XPMan;
 
 type
   TForm1 = class(TForm)
